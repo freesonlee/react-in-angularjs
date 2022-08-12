@@ -2,55 +2,75 @@ const React = require("react");
 const ReactDOM = require("react-dom");
 const isPlainObject = require("lodash/isPlainObject");
 const isEqual = require("lodash/isEqual");
+const parse = require('html-react-parser');
 
-function angularize(Component, componentName, angularApp, bindings) {
+function angularize(Component, componentName, angularApp, bindings, options) {
   bindings = bindings || {};
   if (typeof window === "undefined" || typeof angularApp === "undefined")
     return;
 
-  angularApp.component(componentName, {
-    bindings,
-    controller: [
-      "$element",
-      function ($element) {
-        if (window.angular) {
-          // Add $scope
-          this.$scope = window.angular.element($element).scope();
-
-          // Create a map of objects bound by '='
-          // For those that exists, use $doCheck to check them using angular.equals and trigger $onChanges
-          const previous = {};
-          this.$onInit = () => {
-            for (let bindingKey of Object.keys(bindings)) {
-              if (/^data[A-Z]/.test(bindingKey)) {
-                console.warn(
-                  `'${bindingKey}' binding for ${componentName} component will be undefined because AngularJS ignores attributes starting with data-`
-                );
+  var componentOptions = {
+      bindings,
+      template: options?.transclude ? '<ng-transclude></ng-transclude>' : undefined,
+      controller: [
+        "$element",
+        "$timeout",
+        function ($element, $timeout) {
+          if (window.angular) {
+            // Add $scope
+            this.$scope = window.angular.element($element).scope();
+  
+            // Create a map of objects bound by '='
+            // For those that exists, use $doCheck to check them using angular.equals and trigger $onChanges
+            const previous = {};
+            this.$onInit = () => {
+              for (let bindingKey of Object.keys(bindings)) {
+                if (/^data[A-Z]/.test(bindingKey)) {
+                  console.warn(
+                    `'${bindingKey}' binding for ${componentName} component will be undefined because AngularJS ignores attributes starting with data-`
+                  );
+                }
+  
+                if (bindings[bindingKey] === "=") {
+                  previous[bindingKey] = window.angular.copy(this[bindingKey]);
+                }
               }
-
-              if (bindings[bindingKey] === "=") {
-                previous[bindingKey] = window.angular.copy(this[bindingKey]);
+            };
+  
+            this.$doCheck = () => {
+              for (let previousKey of Object.keys(previous)) {
+                if (!equals(this[previousKey], previous[previousKey])) {
+                  this.$onChanges();
+                  previous[previousKey] = window.angular.copy(this[previousKey]);
+                  return;
+                }
               }
+            };
+          }
+  
+          this.$onChanges = () => {
+            if (options?.transclude) {
+
+              // need to find a better to get compiled and linked html for transclude content.
+              // also be best to find a way to convert DOM to React element.
+              // domToReact in html-react-parser doesn't work well for HTML elements that don't have 'type' property.
+
+              $timeout( () => {
+                ReactDOM.render(React.createElement(Component, _this, parse($element[0].innerHTML) ), $element[0]);
+              }, 0);
+            } else {
+              ReactDOM.render(React.createElement(Component, _this), $element[0]);
             }
           };
+        },
+      ],
+  };
 
-          this.$doCheck = () => {
-            for (let previousKey of Object.keys(previous)) {
-              if (!equals(this[previousKey], previous[previousKey])) {
-                this.$onChanges();
-                previous[previousKey] = window.angular.copy(this[previousKey]);
-                return;
-              }
-            }
-          };
-        }
+  if (options) {
+    componentOptions = { ...componentOptions, ...options };
+  }
 
-        this.$onChanges = () => {
-          ReactDOM.render(React.createElement(Component, this), $element[0]);
-        };
-      },
-    ],
-  });
+  angularApp.component(componentName, componentOptions);
 }
 
 function angularizeDirective(Component, directiveName, angularApp, bindings) {
