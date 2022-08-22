@@ -16,6 +16,8 @@ function angularize(Component, componentName, angularApp, bindings, options) {
         "$element",
         "$timeout",
         function ($element, $timeout) {
+
+          var me = this;
           if (window.angular) {
             // Add $scope
             this.$scope = window.angular.element($element).scope();
@@ -56,10 +58,10 @@ function angularize(Component, componentName, angularApp, bindings, options) {
               // domToReact in html-react-parser doesn't work well for HTML elements that don't have 'type' property.
 
               $timeout( () => {
-                ReactDOM.render(React.createElement(Component, _this, parse($element[0].innerHTML) ), $element[0]);
+                ReactDOM.render(React.createElement(Component, me, parse($element[0].innerHTML) ), $element[0]);
               }, 0);
             } else {
-              ReactDOM.render(React.createElement(Component, _this), $element[0]);
+              ReactDOM.render(React.createElement(Component, this), $element[0]);
             }
           };
         },
