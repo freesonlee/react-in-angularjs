@@ -5,87 +5,102 @@ import { createRoot } from 'react-dom/client';
 const isPlainObject = require("lodash/isPlainObject");
 const isEqual = require("lodash/isEqual");
 
-function angularize(Component, componentName, angularApp, bindings) {
+function angularize(Component, componentName, angularApp, bindings, options) {
   bindings = bindings || {};
   if (typeof window === "undefined" || typeof angularApp === "undefined")
     return;
 
   var componentOptions = {
-      bindings,
-      template: options?.transclude ? '<ng-transclude></ng-transclude>' : undefined,
-      controller: [
-        "$element",
-        "$timeout",
-        function ($element, $timeout) {
+    bindings,
+    template: options?.transclude ? '<ng-transclude></ng-transclude>' : undefined,
+    controller: [
+      "$element",
+      "$timeout",
+      function ($element, $timeout) {
 
-          if (window.angular) {
-            // Add $scope
-            this.$scope = window.angular.element($element).scope();
-  
-            // Create a map of objects bound by '='
-            // For those that exists, use $doCheck to check them using angular.equals and trigger $onChanges
-            const previous = {};
-            this.$onInit = () => {
-              for (let bindingKey of Object.keys(bindings)) {
-                if (/^data[A-Z]/.test(bindingKey)) {
-                  console.warn(
-                    `'${bindingKey}' binding for ${componentName} component will be undefined because AngularJS ignores attributes starting with data-`
-                  );
-                }
-  
-                if (bindings[bindingKey] === "=") {
-                  previous[bindingKey] = window.angular.copy(this[bindingKey]);
-                }
+        if (window.angular) {
+          // Add $scope
+          this.$scope = window.angular.element($element).scope();
+
+          // Create a map of objects bound by '='
+          // For those that exists, use $doCheck to check them using angular.equals and trigger $onChanges
+          const previous = {};
+          this.$onInit = () => {
+            for (let bindingKey of Object.keys(bindings)) {
+              if (/^data[A-Z]/.test(bindingKey)) {
+                console.warn(
+                  `'${bindingKey}' binding for ${componentName} component will be undefined because AngularJS ignores attributes starting with data-`
+                );
               }
-            };
-  
-            this.$doCheck = () => {
-              for (let previousKey of Object.keys(previous)) {
-                if (!equals(this[previousKey], previous[previousKey])) {
-                  this.$onChanges();
-                  previous[previousKey] = window.angular.copy(this[previousKey]);
-                  return;
-                }
+
+              if (bindings[bindingKey] === "=") {
+                previous[bindingKey] = window.angular.copy(this[bindingKey]);
               }
-            };
-          }
-          
-          this.contentChangedCallback = () => {
-            this.reactRoot.render(React.createElement(Component, this, parse($element.html()) ));
-          };
-  
-          this.$onChanges = () => {
-            if (options?.transclude) {
-
-              // need to find a better to get compiled and linked html for transclude content.
-              // also be best to find a way to convert DOM to React element.
-              // domToReact in html-react-parser doesn't work well for HTML elements that don't have 'type' property.
-             
-              $timeout( () => {
-
-                if( !this.reactRoot) {
-                  const reactContainer = $element.clone();
-                  reactContainer.insertAfter($element);
-                  this.reactRoot = createRoot(reactContainer[0]);
-                  this.reactRoot.render(React.createElement(Component, this, parse($element.html()) ));
-
-                  const observer = new MutationObserver(this.contentChangedCallback);
-              
-                  observer.observe($element[0], {
-                    attributes: true,
-                    childList: true,
-                    subtree: true,
-                    characterData: true,
-                  });     
-                  $element.hide();
-                }     
-              }, 0);
-            } else {
-              createRoot($element[0]).render(React.createElement(Component, this ));
             }
           };
-        },
-      ],
+
+          this.$doCheck = () => {
+            for (let previousKey of Object.keys(previous)) {
+              if (!equals(this[previousKey], previous[previousKey])) {
+                this.$onChanges();
+                previous[previousKey] = window.angular.copy(this[previousKey]);
+                return;
+              }
+            }
+          };
+        };
+
+        this.$onDestroy = () => {
+          this.reactRoot.unmount();
+        };
+
+        this.$onChanges = () => {
+          if (options?.transclude) {
+
+            if (!this.reactRoot) {
+
+              const reactContainer = $element.clone();
+
+              reactContainer.insertAfter($element);
+
+              this.reactRoot = createRoot(reactContainer[0]);
+              this.reactRoot.render(React.createElement(Component, this, [React.createElement(() => <ng-transclude></ng-transclude>, { key: "transcluded" })]));
+              $timeout(() => {
+                reactContainer.ready(() => {
+
+                  $element.children().replaceAll(reactContainer.find("ng-transclude"));
+                  $element[0].attributes.length
+
+                  for (let index = 0; index < $element[0].attributes.length; index++) {
+                    const att = $element[0].attributes[index];
+                    reactContainer.attr(att.name, att.value);
+                  }
+                  
+                  const obs = new MutationObserver((mutations) => {
+
+                    mutations.forEach(m => {
+                      reactContainer.attr(m.attributeName, m.target.attributes[m.attributeName].value);
+                    });
+                  });
+
+                  obs.observe($element[0], { attributes: true });
+
+                });
+
+              }, 0);
+
+            }
+
+          } else {
+            if( !this.reactRoot) {
+              this.reactRoot = createRoot($element[0]);
+            }
+            
+            this.reactRoot.render(React.createElement(Component, this ));
+          }
+        };
+      },
+    ],
   };
 
   if (options) {

@@ -1,6 +1,6 @@
 {
   "name": "@incidentiq/react-in-angularjs",
-  "version": "18.0.2",
+  "version": "18.0.3",
   "description": "A super simple way to render React components in AngularJS",
   "main": "index.js",
   "author": "Joshua Prodahl",
@@ -20,6 +20,7 @@
     "@babel/cli": "7.17.0",
     "@babel/core": "7.17.2",
     "@babel/preset-env": "7.16.11",
+    "@babel/preset-react": "^7.18.6",
     "prettier": "2.5.1"
   }
 }
