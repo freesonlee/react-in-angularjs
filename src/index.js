@@ -79,7 +79,13 @@ function angularize(Component, componentName, angularApp, bindings, options) {
                   const obs = new MutationObserver((mutations) => {
 
                     mutations.forEach(m => {
-                      reactContainer.attr(m.attributeName, m.target.attributes[m.attributeName].value);
+
+                      if( m.target[m.attributeName]) {
+                        reactContainer.attr(m.attributeName, m.target.attributes[m.attributeName].value);
+                      } else {
+                        reactContainer.removeAttr(m.attributeName);
+                      }
+                      
                     });
                   });
 
