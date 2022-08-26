@@ -7,7 +7,7 @@
   "homepage": "https://github.com/xjpro/react-in-angularjs",
   "repository": "github:xjpro/react-in-angularjs",
   "scripts": {
-    "build": "babel src/index.js -d ./"
+    "build": "babel src/index.js -d ./ --presets @babel/preset-react"
   },
   "dependencies": {
     "lodash": ">=1.0.0"
